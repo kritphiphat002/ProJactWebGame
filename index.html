@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Magic Word Wizard - พ่อมดร่ายเวท</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+        body {
+            background-color: #05060b;
+            color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        #game-container {
+            position: relative;
+            width: 900px;
+            height: 650px;
+            background: radial-gradient(circle at 50% 30%, #1a103c 0%, #08091a 80%, #03040a 100%);
+            border-radius: 20px;
+            box-shadow: 0 0 50px rgba(112, 0, 255, 0.3), inset 0 0 20px rgba(0, 243, 255, 0.1);
+            border: 2px solid rgba(138, 43, 226, 0.3);
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        
+        /* UI Overlay Elements */
+        .ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 20px;
+        }
+        
+        /* Top Bar */
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(10, 11, 26, 0.65);
+            backdrop-filter: blur(12px);
+            padding: 12px 28px;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        .stat-box {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        .stat-label { color: #8c90b0; font-size: 13px; letter-spacing: 1px; text-transform: uppercase; }
+        .stat-value { color: #00f3ff; text-shadow: 0 0 10px rgba(0, 243, 255, 0.6); font-family: monospace; font-size: 22px; }
+        .stat-value.challenge { color: #ff0055; text-shadow: 0 0 10px rgba(255, 0, 85, 0.8); animation: pulse 1s infinite alternate; }
+
+        @keyframes pulse {
+            from { opacity: 0.7; }
+            to { opacity: 1; transform: scale(1.05); }
+        }
+
+        /* Keyboard Display */
+        .keyboard-guide {
+            background: rgba(10, 11, 26, 0.75);
+            backdrop-filter: blur(12px);
+            border-radius: 16px;
+            padding: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            align-items: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+        .key-row { display: flex; gap: 6px; }
+        .key {
+            width: 34px;
+            height: 38px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 8px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            font-size: 14px;
+            color: #717595;
+            transition: all 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .key.active {
+            background: linear-gradient(135deg, #00f3ff, #0066ff);
+            color: #ffffff;
+            box-shadow: 0 0 15px #00f3ff, inset 0 0 5px #fff;
+            transform: translateY(-3px) scale(1.08);
+            border-color: #fff;
+        }
+
+        /* Screen States Overlay */
+        .screen-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(5, 6, 12, 0.88);
+            backdrop-filter: blur(10px);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            pointer-events: auto;
+            gap: 18px;
+            z-index: 10;
+        }
+        .title {
+            font-size: 46px;
+            font-weight: 900;
+            background: linear-gradient(135deg, #00f3ff 0%, #b000ff 50%, #ff0077 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 0 15px rgba(176, 0, 255, 0.4));
+            text-align: center;
+            letter-spacing: 1px;
+        }
+        .btn {
+            background: linear-gradient(135deg, #00f3ff, #7000ff);
+            color: #fff;
+            border: none;
+            padding: 14px 40px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 30px;
+            cursor: pointer;
+            box-shadow: 0 0 20px rgba(0, 243, 255, 0.4);
+            transition: all 0.25s ease;
+        }
+        .btn:hover {
+            transform: translateY(-2px) scale(1.05);
+            box-shadow: 0 0 30px rgba(0, 243, 255, 0.7);
+        }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="gameCanvas" width="900" height="650"></canvas>
+
+    <!-- UI Overlay Layer -->
+    <div class="ui-layer">
+        <div class="top-bar">
+            <div class="stat-box">
+                <span class="stat-label">WAVE</span>
+                <span id="wave-val" class="stat-value">1 / 10</span>
+            </div>
+            <div class="stat-box">
+                <span class="stat-label">SCORE</span>
+                <span id="score-val" class="stat-value">0</span>
+            </div>
+        </div>
+
+        <!-- Virtual Keyboard Helper -->
+        <div class="keyboard-guide" id="keyboard-guide">
+            <div class="key-row" id="row-1"></div>
+            <div class="key-row" id="row-2"></div>
+            <div class="key-row" id="row-3"></div>
+        </div>
+    </div>
+
+    <!-- Start Screen Overlay -->
+    <div id="start-screen" class="screen-overlay">
+        <div class="title">🧙‍♂️ MAGIC WORD WIZARD</div>
+        <p style="color: #a0a5ba; text-align: center; max-width: 540px; line-height: 1.6; font-size: 16px;">
+            ช่วยพ่อมดน้อยร่ายเวทผ่าน 10 Wave!<br>
+            <span style="color: #00f3ff; font-weight: bold;">✨ คำแปลภาษาไทยจะขึ้นบนหัวคำศัพท์ภาษาอังกฤษ</span><br>
+            <span style="color: #ff0055; font-weight: bold;">🔥 Challenge Mode: ให้เวลา 1 นาที ลดลงทีละ 5 วิเมื่อพิมพ์เสร็จ (ต่ำสุดเหลือ 30 วิ)!</span>
+        </p>
+        <button class="btn" onclick="game.start()">เริ่มร่ายเวทมนตร์</button>
+    </div>
+
+    <!-- Game Over / Leaderboard Screen Overlay -->
+    <div id="gameover-screen" class="screen-overlay hidden">
+        <div id="end-title" class="title" style="background: linear-gradient(135deg, #ff0055, #ff5500); -webkit-background-clip: text;">💥 GAME OVER</div>
+        <p style="font-size: 22px; color: #fff;">คะแนนรวมของคุณ: <span id="final-score" style="color: #00f3ff; font-weight: bold;">0</span> PTS</p>
+        
+        <!-- ฟอร์มกรอกชื่อบันทึกคะแนน -->
+        <div id="name-input-container" style="display: flex; gap: 10px;">
+            <input type="text" id="player-name" placeholder="กรอกชื่อจอมเวท..." maxlength="12" style="padding: 12px 18px; border-radius: 10px; border: 1px solid #00f3ff; background: rgba(0,0,0,0.6); color: #fff; font-size: 16px; outline: none; width: 200px;">
+            <button class="btn" style="padding: 12px 24px; font-size: 16px;" onclick="game.saveScore()">บันทึก</button>
+        </div>
+
+        <!-- ตารางแสดง 5 อันดับแรก -->
+        <div style="width: 340px; background: rgba(15, 16, 35, 0.7); border-radius: 16px; padding: 18px; border: 1px solid rgba(0, 243, 255, 0.2); backdrop-filter: blur(8px);">
+            <h3 style="color: #00f3ff; margin-bottom: 12px; text-align: center; font-size: 18px; letter-spacing: 1px;">🏆 TOP 5 LEADERBOARD</h3>
+            <ol id="leaderboard-list" style="padding-left: 25px; color: #e1e2e6; font-size: 15px; text-align: left; line-height: 1.8;"></ol>
+        </div>
+
+        <button class="btn" style="margin-top: 5px;" onclick="game.start()">เริ่มเล่นใหม่</button>
+    </div>
+</div>
+
+<script>
+// --- Web Audio Synthesizer ---
+class SoundManager {
+    constructor() {
+        this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    playCorrect() {
+        if (this.ctx.state === 'suspended') this.ctx.resume();
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(523.25, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(659.25, this.ctx.currentTime + 0.1);
+        gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.15);
+    }
+    playWrong() {
+        if (this.ctx.state === 'suspended') this.ctx.resume();
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(180, this.ctx.currentTime);
+        osc.frequency.linearRampToValueAtTime(80, this.ctx.currentTime + 0.3);
+        gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.3);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.3);
+    }
+    playSpell() {
+        if (this.ctx.state === 'suspended') this.ctx.resume();
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(300, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(800, this.ctx.currentTime + 0.3);
+        gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.3);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.3);
+    }
+}
+
+// --- Particles System ---
+class Particle {
+    constructor(x, y, color) {
+        this.x = x;
+        this.y = y;
+        this.color = color;
+        this.vx = (Math.random() - 0.5) * 7;
+        this.vy = (Math.random() - 0.5) * 7;
+        this.radius = Math.random() * 4 + 2;
+        this.alpha = 1;
+    }
+    update() {
+        this.x += this.vx;
+        this.y += this.vy;
+        this.alpha -= 0.025;
+    }
+    draw(ctx) {
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, this.alpha);
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    }
+}
+
+// --- Main Game Engine ---
+class Game {
+    constructor() {
+        this.canvas = document.getElementById('gameCanvas');
+        this.ctx = this.canvas.getContext('2d');
+        this.sound = new SoundManager();
+
+        this.gameState = 'READY'; // READY, PLAYING, GAMEOVER
+        this.score = 0;
+        this.currentWave = 1;
+        this.maxNormalWave = 10;
+        this.isChallengeMode = false;
+
+        // ระบบเวลา Challenge Mode (1 นาที = 100%)
+        this.timeLeft = 100;
+        this.maxTime = 100;
+        this.timeSpeed = 0.028; // ลดปกติเรื่อยๆ
+        this.challengeMaxAllowedTime = 100; // เวลาสูงสุดของข้อนั้นๆ (ลดทีละ 5 วิ ต่ำสุด 30 วิ)
+
+        // คลังคำศัพท์คู่ (อังกฤษ + ไทย) สำหรับ Wave 1 - 10
+        this.wordBank = [
+            [{ en: "CAT", th: "แมว" }, { en: "DOG", th: "สุนัข" }, { en: "SUN", th: "พระอาทิตย์" }, { en: "BIRD", th: "นก" }],
+            [{ en: "FISH", th: "ปลา" }, { en: "STAR", th: "ดาว" }, { en: "FROG", th: "กบ" }, { en: "TREE", th: "ต้นไม้" }],
+            [{ en: "WIND", th: "ลม" }, { en: "FIRE", th: "ไฟ" }, { en: "MAGIC", th: "เวทมนตร์" }, { en: "BOOK", th: "หนังสือ" }],
+            [{ en: "POWER", th: "พลัง" }, { en: "LIGHT", th: "แสง" }, { en: "SPELL", th: "คาถา" }, { en: "SHINE", th: "เปล่งประกาย" }],
+            [{ en: "WIZARD", th: "พ่อมด" }, { en: "DRAGON", th: "มังกร" }, { en: "SHIELD", th: "โล่" }, { en: "SWORD", th: "ดาบ" }],
+            [{ en: "CASTLE", th: "ปราสาท" }, { en: "FOREST", th: "ป่าไม้" }, { en: "CRYSTAL", th: "คริสตัล" }, { en: "ENERGY", th: "พลังงาน" }],
+            [{ en: "PHOENIX", th: "ฟีนิกซ์" }, { en: "THUNDER", th: "สายฟ้า" }, { en: "KINGDOM", th: "อาณาจักร" }, { en: "UNIVERSE", th: "จักรวาล" }],
+            [{ en: "LIGHTNING", "th": "อัศวิน" }, { en: "EXPLOSION", th: "ระเบิด" }, { en: "GODLIKE", th: "ดุจเทพเจ้า" }, { en: "WARRIOR", th: "นักรบ" }],
+            [{ en: "ELEMENTAL", th: "ธาตุ" }, { en: "DARKNESS", th: "ความมืด" }, { en: "SUPERNOVA", th: "ซูเปอร์โนวา" }, { en: "DIMENSION", th: "มิติ" }],
+            [{ en: "IMMORTAL", th: "อมตะ" }, { en: "LEGENDARY", th: "ตำนาน" }, { en: "APOCALYPSE", th: "วันสิ้นโลก" }, { en: "ETERNITY", th: "ชั่วนิรันดร์" }]
+        ];
+
+        // คลังคำศัพท์ยากสำหรับ Challenge Mode
+        this.challengeWords = [
+            { en: "WIZARDRY", th: "เวทมนตร์ศาสตร์" },
+            { en: "NECROMANCER", th: "ผู้อัญเชิญวิญญาณ" },
+            { en: "SPELLBINDER", th: "ผู้สะกดตรวน" },
+            { en: "DESTRUCTION", th: "การทำลายล้าง" },
+            { en: "INVINCIBLE", th: "ไร้พ่าย" },
+            { en: "THUNDERSTORM", th: "พายุสายฟ้า" },
+            { en: "CATASTROPHE", th: "มหันตภัย" }
+        ];
+
+        this.currentMonster = null;
+        this.currentCharIndex = 0;
+        this.particles = [];
+        this.spellOrb = null;
+        this.shakeTimer = 0;
+        this.animTime = 0;
+
+        this.stars = Array.from({length: 60}, () => ({
+            x: Math.random() * 900,
+            y: Math.random() * 400,
+            size: Math.random() * 2 + 0.5,
+            alpha: Math.random()
+        }));
+
+        this.initKeyboardUI();
+        window.addEventListener('keydown', (e) => this.handleKeyDown(e));
+        
+        this.loop = this.loop.bind(this);
+        requestAnimationFrame(this.loop);
+    }
+
+    initKeyboardUI() {
+        const rows = [
+            ["Q","W","E","R","T","Y","U","I","O","P"],
+            ["A","S","D","F","G","H","J","K","L"],
+            ["Z","X","C","V","B","N","M"]
+        ];
+        rows.forEach((row, idx) => {
+            const container = document.getElementById(`row-${idx + 1}`);
+            container.innerHTML = '';
+            row.forEach(key => {
+                const div = document.createElement('div');
+                div.className = 'key';
+                div.id = `key-${key}`;
+                div.innerText = key;
+                container.appendChild(div);
+            });
+        });
+    }
+
+    updateKeyboardHighlight() {
+        document.querySelectorAll('.key').forEach(k => k.classList.remove('active'));
+        if (this.gameState === 'PLAYING' && this.currentMonster) {
+            const expected = this.currentMonster.wordEn[this.currentCharIndex];
+            if (expected) {
+                const keyEl = document.getElementById(`key-${expected.toUpperCase()}`);
+                if (keyEl) keyEl.classList.add('active');
+            }
+        }
+    }
+
+    start() {
+        this.score = 0;
+        this.currentWave = 1;
+        this.isChallengeMode = false;
+        this.challengeMaxAllowedTime = 100; // 60 วินาที
+        this.gameState = 'PLAYING';
+        document.getElementById('start-screen').classList.add('hidden');
+        document.getElementById('gameover-screen').classList.add('hidden');
+        document.getElementById('name-input-container').style.display = 'flex';
+        document.getElementById('player-name').value = '';
+        this.updateUI();
+        this.spawnNextMonster();
+    }
+
+    spawnNextMonster() {
+        let randomObj = null;
+        
+        if (!this.isChallengeMode) {
+            const words = this.wordBank[this.currentWave - 1];
+            randomObj = words[Math.floor(Math.random() * words.length)];
+        } else {
+            randomObj = this.challengeWords[Math.floor(Math.random() * this.challengeWords.length)];
+            // รีเซ็ตเวลาตามเพดานที่เหลือ
+            this.timeLeft = this.challengeMaxAllowedTime;
+        }
+
+        this.currentMonster = {
+            wordEn: randomObj.en,
+            wordTh: randomObj.th,
+            x: 670,
+            y: 380
+        };
+        this.currentCharIndex = 0;
+        this.updateKeyboardHighlight();
+    }
+
+    handleKeyDown(e) {
+        if (this.gameState !== 'PLAYING' || !this.currentMonster) return;
+        if (!/^[a-zA-Z]$/.test(e.key)) return;
+
+        const pressedKey = e.key.toLowerCase();
+        const targetWord = this.currentMonster.wordEn.toLowerCase();
+        const expectedChar = targetWord[this.currentCharIndex];
+
+        // 1. พิมพ์ถูก
+        if (pressedKey === expectedChar) {
+            this.currentCharIndex++;
+            this.sound.playCorrect();
+            this.spawnParticles(175, 340, '#00f3ff');
+
+            if (this.currentCharIndex >= targetWord.length) {
+                this.castSpell();
+            }
+        } 
+        // 2. พิมพ์ผิด
+        else {
+            this.sound.playWrong();
+            this.shakeTimer = 20;
+
+            if (this.isChallengeMode) {
+                this.gameOver("พิมพ์ผิดในโหมดท้าทาย!");
+            } else {
+                this.currentCharIndex = 0;
+                this.spawnParticles(175, 340, '#ff0055', 15);
+            }
+        }
+
+        this.updateKeyboardHighlight();
+    }
+
+    castSpell() {
+        this.sound.playSpell();
+        this.spellOrb = { x: 190, y: 340, targetX: this.currentMonster.x, targetY: this.currentMonster.y };
+    }
+
+    onSpellHit() {
+        this.spawnParticles(this.currentMonster.x, this.currentMonster.y, '#d154ff', 30);
+        
+        const multiplier = this.isChallengeMode ? 25 : 10;
+        this.score += this.currentMonster.wordEn.length * multiplier;
+        
+        // หากอยู่ใน Challenge Mode ให้ลดเวลาเพดานลงทีละ 5 วินาที (ประมาณ 8.33% ของ 60 วิ)
+        // ต่ำสุดไม่เกิน 30 วินาที (50% ของหลอดเต็ม)
+        if (this.isChallengeMode) {
+            this.challengeMaxAllowedTime = Math.max(50, this.challengeMaxAllowedTime - 8.33);
+        }
+
+        this.spellOrb = null;
+        this.currentMonster = null;
+        this.updateUI();
+
+        setTimeout(() => {
+            if (!this.isChallengeMode) {
+                if (this.currentWave < this.maxNormalWave) {
+                    this.currentWave++;
+                } else {
+                    this.isChallengeMode = true;
+                    this.challengeMaxAllowedTime = 100; // เริ่ม Challenge Mode ด้วยเวลา 1 นาทีเต็ม
+                }
+            } else {
+                this.currentWave++;
+            }
+
+            this.updateUI();
+            this.spawnNextMonster();
+        }, 400);
+    }
+
+    gameOver(reason = "หมดเวลา!") {
+        this.gameState = 'GAMEOVER';
+        if (this.currentMonster) {
+            this.spawnParticles(this.currentMonster.x, this.currentMonster.y, '#ff0055', 40);
+        }
+        
+        document.getElementById('final-score').innerText = this.score;
+        document.getElementById('gameover-screen').classList.remove('hidden');
+        
+        const titleEl = document.getElementById('end-title');
+        titleEl.innerText = `💥 ${reason}`;
+        titleEl.style.background = "linear-gradient(135deg, #ff0055, #ff5500)";
+        titleEl.style.webkitBackgroundClip = "text";
+
+        this.updateLeaderboardUI();
+    }
+
+    updateLeaderboardUI() {
+        const leaderboard = JSON.parse(localStorage.getItem('wizard_leaderboard')) || [];
+        const listEl = document.getElementById('leaderboard-list');
+        listEl.innerHTML = '';
+
+        if (leaderboard.length === 0) {
+            listEl.innerHTML = '<li style="list-style:none; color:#8a8d9b;">ยังไม่มีข้อมูลคะแนน</li>';
+            return;
+        }
+
+        leaderboard
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 5)
+            .forEach(entry => {
+                const li = document.createElement('li');
+                li.innerHTML = `<span style="color:#fff; font-weight:bold;">${entry.name}</span> - <span style="color:#00f3ff;">${entry.score}</span> PTS`;
+                listEl.appendChild(li);
+            });
+    }
+
+    saveScore() {
+        const nameInput = document.getElementById('player-name');
+        const name = nameInput.value.trim() || 'พ่อมดไร้นาม';
+        
+        const leaderboard = JSON.parse(localStorage.getItem('wizard_leaderboard')) || [];
+        leaderboard.push({ name: name, score: this.score });
+        
+        localStorage.setItem('wizard_leaderboard', JSON.stringify(leaderboard));
+        document.getElementById('name-input-container').style.display = 'none';
+        this.updateLeaderboardUI();
+    }
+
+    spawnParticles(x, y, color, count = 10) {
+        for (let i = 0; i < count; i++) {
+            this.particles.push(new Particle(x, y, color));
+        }
+    }
+
+    updateUI() {
+        const waveEl = document.getElementById('wave-val');
+        if (this.isChallengeMode) {
+            waveEl.innerText = `🔥 CHALLENGE (${this.currentWave - 10})`;
+            waveEl.classList.add('challenge');
+        } else {
+            waveEl.innerText = `${this.currentWave} / 10`;
+            waveEl.classList.remove('challenge');
+        }
+        document.getElementById('score-val').innerText = this.score;
+    }
+
+    loop() {
+        this.animTime += 0.04;
+        this.update();
+        this.render();
+        requestAnimationFrame(this.loop);
+    }
+
+    update() {
+        // นับเวลาถอยหลัง เฉพาะเมื่ออยู่ใน Challenge Mode เท่านั้น
+        if (this.gameState === 'PLAYING' && this.isChallengeMode && this.currentMonster && !this.spellOrb) {
+            this.timeLeft -= this.timeSpeed;
+            if (this.timeLeft <= 0) {
+                this.timeLeft = 0;
+                this.sound.playWrong();
+                this.gameOver("หมดเวลาพิมพ์!");
+            }
+        }
+
+        if (this.spellOrb) {
+            this.spellOrb.x += 20;
+            this.spawnParticles(this.spellOrb.x, this.spellOrb.y, '#00f3ff', 2);
+            if (this.spellOrb.x >= this.spellOrb.targetX) {
+                this.onSpellHit();
+            }
+        }
+
+        this.particles.forEach((p, idx) => {
+            p.update();
+            if (p.alpha <= 0) this.particles.splice(idx, 1);
+        });
+
+        if (this.shakeTimer > 0) this.shakeTimer--;
+    }
+
+    render() {
+        this.ctx.save();
+        
+        if (this.shakeTimer > 0) {
+            this.ctx.translate((Math.random() - 0.5) * 8, (Math.random() - 0.5) * 8);
+        }
+
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+        this.drawEnvironment();
+        this.drawDetailedWizard(130, 380);
+
+        if (this.currentMonster) {
+            const floatY = this.currentMonster.y + Math.sin(this.animTime * 3) * 6;
+            this.drawDetailedMonster(this.currentMonster.x, floatY);
+            
+            // แสดงคำภาษาไทยและคำภาษาอังกฤษบนหัวมอนสเตอร์
+            this.drawWordUI(this.currentMonster.x, floatY - 75, this.currentMonster.wordEn, this.currentMonster.wordTh);
+            
+            // วาด Time Bar เฉพาะใน Challenge Mode เท่านั้น
+            if (this.isChallengeMode) {
+                this.drawTimerBar(this.currentMonster.x, floatY - 145);
+            }
+        }
+
+        if (this.spellOrb) {
+            this.ctx.fillStyle = '#00f3ff';
+            this.ctx.shadowColor = '#00f3ff';
+            this.ctx.shadowBlur = 20;
+            this.ctx.beginPath();
+            this.ctx.arc(this.spellOrb.x, this.spellOrb.y, 14, 0, Math.PI * 2);
+            this.ctx.fill();
+            this.ctx.shadowBlur = 0;
+        }
+
+        this.particles.forEach(p => p.draw(this.ctx));
+
+        this.ctx.restore();
+    }
+
+    drawTimerBar(x, y) {
+        const barWidth = 140;
+        const barHeight = 10;
+        const startX = x - barWidth / 2;
+
+        // กรอบหลัง
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+        this.ctx.strokeStyle = 'rgba(255, 0, 85, 0.4)';
+        this.ctx.lineWidth = 1;
+        this.ctx.beginPath();
+        if (this.ctx.roundRect) {
+            this.ctx.roundRect(startX - 2, y - 2, barWidth + 4, barHeight + 4, 6);
+        } else {
+            this.ctx.rect(startX - 2, y - 2, barWidth + 4, barHeight + 4);
+        }
+        this.ctx.fill();
+        this.ctx.stroke();
+
+        // คำนวณความยาวหลอดเวลา
+        const currentWidth = (this.timeLeft / this.maxTime) * barWidth;
+        
+        if (this.timeLeft > 50) {
+            this.ctx.fillStyle = '#ff0055';
+        } else if (this.timeLeft > 25) {
+            this.ctx.fillStyle = '#ffcc00';
+        } else {
+            this.ctx.fillStyle = '#ff0000';
+        }
+
+        if (currentWidth > 0) {
+            this.ctx.beginPath();
+            if (this.ctx.roundRect) {
+                this.ctx.roundRect(startX, y, currentWidth, barHeight, 4);
+            } else {
+                this.ctx.rect(startX, y, currentWidth, barHeight);
+            }
+            this.ctx.fill();
+        }
+    }
+
+    drawEnvironment() {
+        this.stars.forEach(s => {
+            const alpha = Math.abs(Math.sin(this.animTime + s.x));
+            this.ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.8})`;
+            this.ctx.beginPath();
+            this.ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+            this.ctx.fill();
+        });
+
+        const moonGlow = this.ctx.createRadialGradient(720, 140, 20, 720, 140, 90);
+        moonGlow.addColorStop(0, this.isChallengeMode ? 'rgba(255, 0, 85, 0.9)' : 'rgba(230, 245, 255, 0.9)');
+        moonGlow.addColorStop(0.5, this.isChallengeMode ? 'rgba(255, 0, 85, 0.3)' : 'rgba(160, 210, 255, 0.2)');
+        moonGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        this.ctx.fillStyle = moonGlow;
+        this.ctx.beginPath();
+        this.ctx.arc(720, 140, 90, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        this.ctx.fillStyle = this.isChallengeMode ? '#ff3366' : '#eaf6ff';
+        this.ctx.beginPath();
+        this.ctx.arc(720, 140, 40, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        this.ctx.fillStyle = '#0a0d1e';
+        this.ctx.beginPath();
+        this.ctx.rect(600, 280, 50, 150);
+        this.ctx.rect(620, 220, 30, 60);
+        this.ctx.moveTo(620, 220); this.ctx.lineTo(635, 180); this.ctx.lineTo(650, 220);
+        this.ctx.fill();
+
+        const groundGrad = this.ctx.createLinearGradient(0, 480, 0, 650);
+        groundGrad.addColorStop(0, '#1a1d3b');
+        groundGrad.addColorStop(1, '#090a15');
+        this.ctx.fillStyle = groundGrad;
+        this.ctx.beginPath();
+        this.ctx.ellipse(450, 560, 520, 120, 0, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        this.drawTree(80, 450);
+        this.drawTree(830, 460);
+    }
+
+    drawTree(x, y) {
+        this.ctx.fillStyle = '#0f1128';
+        this.ctx.beginPath();
+        this.ctx.rect(x - 8, y - 60, 16, 60);
+        this.ctx.fill();
+
+        this.ctx.fillStyle = '#161a3a';
+        this.ctx.beginPath();
+        this.ctx.arc(x, y - 80, 35, 0, Math.PI * 2);
+        this.ctx.arc(x - 20, y - 65, 25, 0, Math.PI * 2);
+        this.ctx.arc(x + 20, y - 65, 25, 0, Math.PI * 2);
+        this.ctx.fill();
+    }
+
+    drawDetailedWizard(x, y) {
+        this.ctx.save();
+        
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+        this.ctx.beginPath();
+        this.ctx.ellipse(x, y + 55, 30, 10, 0, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        const robeGrad = this.ctx.createLinearGradient(x - 30, y, x + 30, y);
+        robeGrad.addColorStop(0, '#5333ed');
+        robeGrad.addColorStop(1, '#2f1b8a');
+        this.ctx.fillStyle = robeGrad;
+        this.ctx.beginPath();
+        this.ctx.moveTo(x - 25, y + 50);
+        this.ctx.lineTo(x + 25, y + 50);
+        this.ctx.lineTo(x + 12, y - 10);
+        this.ctx.lineTo(x - 12, y - 10);
+        this.ctx.fill();
+
+        this.ctx.fillStyle = '#ffdfc4';
+        this.ctx.beginPath();
+        this.ctx.arc(x, y - 20, 16, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        this.ctx.fillStyle = '#e8eeea';
+        this.ctx.beginPath();
+        this.ctx.moveTo(x - 14, y - 18);
+        this.ctx.quadraticCurveTo(x, y + 15, x + 14, y - 18);
+        this.ctx.fill();
+
+        this.ctx.fillStyle = '#3a20a0';
+        this.ctx.beginPath();
+        this.ctx.ellipse(x, y - 28, 28, 8, 0, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        this.ctx.beginPath();
+        this.ctx.moveTo(x - 20, y - 28);
+        this.ctx.lineTo(x + 18, y - 28);
+        this.ctx.lineTo(x - 5, y - 75);
+        this.ctx.fill();
+
+        this.ctx.fillStyle = '#00f3ff';
+        this.ctx.shadowColor = '#00f3ff';
+        this.ctx.shadowBlur = 8;
+        this.ctx.beginPath();
+        this.ctx.arc(x + 5, y - 22, 3, 0, Math.PI * 2);
+        this.ctx.fill();
+        this.ctx.shadowBlur = 0;
+
+        this.ctx.strokeStyle = '#8b5a2b';
+        this.ctx.lineWidth = 5;
+        this.ctx.beginPath();
+        this.ctx.moveTo(x + 20, y + 45);
+        this.ctx.lineTo(x + 32, y - 35);
+        this.ctx.stroke();
+
+        const crystalGlow = Math.sin(this.animTime * 5) * 5 + 12;
+        this.ctx.fillStyle = '#00f3ff';
+        this.ctx.shadowColor = '#00f3ff';
+        this.ctx.shadowBlur = crystalGlow;
+        this.ctx.beginPath();
+        this.ctx.arc(x + 32, y - 38, 9, 0, Math.PI * 2);
+        this.ctx.fill();
+        this.ctx.shadowBlur = 0;
+
+        this.ctx.restore();
+    }
+
+    drawDetailedMonster(x, y) {
+        this.ctx.save();
+
+        this.ctx.fillStyle = this.isChallengeMode ? 'rgba(255, 0, 0, 0.4)' : 'rgba(255, 0, 110, 0.2)';
+        this.ctx.beginPath();
+        this.ctx.ellipse(x, y + 45, 35, 10, 0, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        const bodyGrad = this.ctx.createRadialGradient(x - 10, y - 10, 5, x, y, 40);
+        if (this.isChallengeMode) {
+            bodyGrad.addColorStop(0, '#ff1a1a');
+            bodyGrad.addColorStop(1, '#660000');
+        } else {
+            bodyGrad.addColorStop(0, '#ff5599');
+            bodyGrad.addColorStop(1, '#990044');
+        }
+        
+        this.ctx.fillStyle = bodyGrad;
+        this.ctx.shadowColor = this.isChallengeMode ? '#ff0000' : '#ff0055';
+        this.ctx.shadowBlur = 15;
+        this.ctx.beginPath();
+        this.ctx.arc(x, y, 38, 0, Math.PI * 2);
+        this.ctx.fill();
+        this.ctx.shadowBlur = 0;
+
+        // Horns
+        this.ctx.fillStyle = '#33001b';
+        this.ctx.beginPath();
+        this.ctx.moveTo(x - 20, y - 30);
+        this.ctx.lineTo(x - 30, y - 55);
+        this.ctx.lineTo(x - 10, y - 35);
+        this.ctx.fill();
+
+        this.ctx.beginPath();
+        this.ctx.moveTo(x + 20, y - 30);
+        this.ctx.lineTo(x + 30, y - 55);
+        this.ctx.lineTo(x + 10, y - 35);
+        this.ctx.fill();
+
+        // Eye
+        this.ctx.fillStyle = '#fff';
+        this.ctx.beginPath();
+        this.ctx.arc(x, y - 5, 14, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        this.ctx.fillStyle = '#000';
+        this.ctx.beginPath();
+        this.ctx.arc(x - 2, y - 5, 6, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        // Mouth
+        this.ctx.strokeStyle = '#000';
+        this.ctx.lineWidth = 3;
+        this.ctx.beginPath();
+        this.ctx.arc(x, y + 15, 10, 0.1 * Math.PI, 0.9 * Math.PI);
+        this.ctx.stroke();
+
+        this.ctx.restore();
+    }
+
+    drawWordUI(x, y, wordEn, wordTh) {
+        this.ctx.save();
+        
+        // คำนวณความกว้างกล่อง
+        this.ctx.font = 'bold 26px monospace';
+        let enWidth = 0;
+        for (let i = 0; i < wordEn.length; i++) {
+            enWidth += this.ctx.measureText(wordEn[i]).width + 4;
+        }
+
+        this.ctx.font = 'bold 16px sans-serif';
+        let thWidth = this.ctx.measureText(wordTh).width;
+
+        let totalWidth = Math.max(enWidth, thWidth);
+        let startX = x - totalWidth / 2;
+
+        // พื้นหลังป้ายคำศัพท์ (ปรับความสูงรองรับ 2 บรรทัด)
+        this.ctx.fillStyle = 'rgba(10, 11, 26, 0.88)';
+        this.ctx.strokeStyle = this.isChallengeMode ? 'rgba(255, 0, 85, 0.6)' : 'rgba(0, 243, 255, 0.4)';
+        this.ctx.lineWidth = 2;
+        this.ctx.beginPath();
+        if (this.ctx.roundRect) {
+            this.ctx.roundRect(startX - 15, y - 52, totalWidth + 30, 68, 12);
+        } else {
+            this.ctx.rect(startX - 15, y - 52, totalWidth + 30, 68);
+        }
+        this.ctx.fill();
+        this.ctx.stroke();
+
+        // 1. วาดคำภาษาไทย (บรรทัดบน - สีทอง)
+        this.ctx.font = 'bold 15px sans-serif';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillStyle = '#ffcc00';
+        this.ctx.shadowColor = '#ffcc00';
+        this.ctx.shadowBlur = 4;
+        this.ctx.fillText(wordTh, x, y - 30);
+        this.ctx.shadowBlur = 0;
+
+        // 2. วาดคำภาษาอังกฤษ (บรรทัดล่าง - สำหรับพิมพ์)
+        this.ctx.font = 'bold 26px monospace';
+        this.ctx.textAlign = 'left';
+        let drawX = x - enWidth / 2;
+
+        for (let i = 0; i < wordEn.length; i++) {
+            const char = wordEn[i];
+            const charWidth = this.ctx.measureText(char).width;
+
+            if (i < this.currentCharIndex) {
+                // พิมพ์แล้ว (สีฟ้าเรืองแสง)
+                this.ctx.fillStyle = '#00f3ff';
+                this.ctx.shadowColor = '#00f3ff';
+                this.ctx.shadowBlur = 10;
+            } else if (i === this.currentCharIndex) {
+                // ตัวอักษรถัดไปที่ต้องพิมพ์ (สีขาวไฮไลต์)
+                this.ctx.fillStyle = '#ffffff';
+                this.ctx.shadowBlur = 0;
+            } else {
+                // ยังไม่ได้พิมพ์ (สีเทา)
+                this.ctx.fillStyle = '#6c728f';
+                this.ctx.shadowBlur = 0;
+            }
+
+            this.ctx.fillText(char, drawX, y + 4);
+            drawX += charWidth + 4;
+        }
+
+        this.ctx.restore();
+    }
+}
+
+// Instantiate Game
+const game = new Game();
+</script>
+</body>
+</html>
